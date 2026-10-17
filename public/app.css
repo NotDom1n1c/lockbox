@@ -150,5 +150,5 @@ pre.raw .k { color: var(--brass); }
   .login__card { padding: 22px; }
 }
 
-.mt { margin-top: 20px; }
+.mt, .panel .mt { margin-top: 22px; }
 .grow { flex: 1; min-width: 180px; width: auto; }

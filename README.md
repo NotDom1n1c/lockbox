@@ -8,6 +8,20 @@
 
 Built by Dominic Aebersold (Informatiker EFZ Plattformentwicklung) as a portfolio project, next to [LAUNCHPAD](https://github.com/NotDom1n1c/launchpad) and [LIFEBOAT](https://github.com/NotDom1n1c/lifeboat). Node 24, no dependencies.
 
+## Screenshots
+
+**Secrets**: values stay hidden until revealed, and every reveal is audited. Old secrets are flagged for rotation.
+
+![Secrets](docs/screenshots/secrets.png)
+
+**Audit log**: hash-chained. Editing one entry (here: hiding who read a secret) breaks the chain from that point.
+
+![Audit log](docs/screenshots/audit.png)
+
+**Storage**: everything a thief gets from the data file, and why it is useless without the master key
+
+![Storage](docs/screenshots/storage.png)
+
 ## How a secret is stored
 
 ```mermaid
