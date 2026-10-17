@@ -7,6 +7,8 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const DEMO = location.hostname.endsWith("github.io") || new URLSearchParams(location.search).has("demo");
 
 let api, me, tab = "secrets", selected = null, revealed = null, demo = null;
+let vault = null; // the 3D door on the sign-in screen
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function toast(text) {
   const t = $("#toast");
@@ -74,13 +76,22 @@ const isAdmin = () => me?.policies.some((p) => p.capabilities.includes("admin"))
 // ------------------------------------------------------------------ login
 async function signIn(token) {
   const candidate = DEMO ? localApi(demo.lockbox, token) : httpApi(token);
+  let who;
   try {
-    me = await candidate.me();
+    who = await candidate.me();
   } catch (err) {
-    $("#login-error").textContent = err.status === 429 ? "Too many failed attempts. Wait a minute." : `Denied: ${err.message}. This attempt is in the audit log.`;
+    $("#login-error").textContent = err.status === 429 ? "Too many failed attempts. Wait a minute." : `Denied: ${err.message}. This attempt is in the ledger.`;
     $("#login-error").hidden = false;
+    $("#door-caption").textContent = "Access denied · logged";
+    $("#door-caption").className = "door__caption is-denied";
+    vault?.deny();
     return;
   }
+  $("#login-error").hidden = true;
+  $("#door-caption").textContent = `Opening for ${who.name}`;
+  $("#door-caption").className = "door__caption is-open";
+  if (vault && !$("#login").hidden) await vault.unlock();
+  me = who;
   api = candidate;
   if (!DEMO) sessionStorage.setItem("lockbox-token", token);
   $("#login").hidden = true;
@@ -98,6 +109,9 @@ function showLogin() {
   $("#login").hidden = false;
   $("#login-error").hidden = true;
   $("#token").value = "";
+  $("#door-caption").textContent = "Locked · AES-256-GCM";
+  $("#door-caption").className = "door__caption";
+  vault?.close();
 }
 
 // ------------------------------------------------------------------ views
@@ -120,17 +134,20 @@ async function renderSecrets(view) {
   const items = await api.list();
   if (selected && !items.some((s) => s.path === selected)) selected = null;
   const groups = {};
+  const plate = new Map(items.map((s, i) => [s.path, String(i + 1).padStart(3, "0")]));
   for (const s of items) (groups[s.path.split("/")[0]] ||= []).push(s);
   const cur = items.find((s) => s.path === selected);
 
   view.innerHTML = `
     <div class="split">
       <aside class="panel">
-        <div class="head"><h2>Secrets</h2>${canWriteSomewhere() ? '<button class="btn btn--brass btn--sm" id="new" type="button">New</button>' : ""}</div>
+        <div class="head"><h2>Deposit boxes</h2>${canWriteSomewhere() ? '<button class="btn btn--brass btn--sm" id="new" type="button">New</button>' : ""}</div>
         ${items.length ? `<ul class="list">${Object.entries(groups).map(([g, list]) => `
           <li class="group">${esc(g)}</li>
           ${list.map((s) => `<li><button type="button" data-path="${esc(s.path)}" aria-current="${s.path === selected}">
+            <span class="plate">No.${plate.get(s.path)}</span>
             <span class="name">${esc(s.path.slice(g.length + 1))}</span>
+            <span class="keyhole" aria-hidden="true"></span>
             ${s.stale ? '<span class="badge badge--warn">rotate</span>' : ""}
             <span class="lock">v${s.version}</span></button></li>`).join("")}`).join("")}</ul>`
           : `<p class="empty">You may not list any secrets.</p>`}
@@ -140,7 +157,7 @@ async function renderSecrets(view) {
           <button class="btn btn--sm" type="submit">Try to read</button>
         </form>
       </aside>
-      <section class="panel" id="detail">${cur ? detail(cur) : newForm()}</section>
+      <section class="panel doc" id="detail">${cur ? detail(cur) : newForm()}</section>
     </div>`;
 
   view.querySelectorAll("[data-path]").forEach((b) => b.addEventListener("click", () => { selected = b.dataset.path; revealed = null; render(); }));
@@ -153,7 +170,7 @@ async function renderSecrets(view) {
       selected = path; revealed = { version: r.version, value: r.value };
       render();
     } catch (err) {
-      $("#detail").innerHTML = `<div class="denied"><b>${err.status === 403 ? "Denied" : "Not possible"}:</b> ${esc(err.message)}.<br>
+      $("#detail").innerHTML = `<div class="denied"><b>${err.status === 403 ? "Access denied" : "Not possible"}</b> ${esc(err.message)}.<br>
         ${err.status === 403 ? "LOCKBOX refused before decrypting anything, and wrote the attempt to the audit log." : ""}</div>`;
     }
   });
@@ -163,7 +180,7 @@ async function renderSecrets(view) {
 function newForm() {
   if (!canWriteSomewhere()) return `<div class="empty">Pick a secret on the left.<br><span class="small">${esc(me.name)} can read, not write.</span></div>`;
   return `
-    <h2>New secret</h2>
+    <h2>Deposit a secret</h2>
     <p class="muted small">Encrypted with its own data key, which is wrapped with the master key. Only the ciphertext is stored.</p>
     <form class="stack" id="create">
       <label class="label" for="c-path">Path</label>
@@ -288,12 +305,12 @@ async function renderAudit(view) {
   const { entries, chain } = await api.audit();
   const brokenAt = chain.ok ? null : chain.brokenAt;
   view.innerHTML = `
-    <section class="panel">
-      <div class="head"><h2>Audit log</h2>${demo ? '<button class="btn btn--danger btn--sm" id="tamper" type="button">Tamper with an entry</button>' : ""}</div>
+    <section class="panel ledger">
+      <div class="head"><h2>The ledger</h2>${demo ? '<button class="btn btn--danger btn--sm" id="tamper" type="button">Tamper with an entry</button>' : ""}</div>
       <div class="chain ${chain.ok ? "chain--ok" : "chain--bad"}">
         ${chain.ok
-          ? `<b>Chain intact.</b><span>All ${chain.checked} entries verified. Head <code>${esc(chain.head.slice(0, 16))}…</code></span>`
-          : `<b>Chain broken at entry #${brokenAt}.</b><span>Someone changed, removed or reordered the log. Everything from there on can no longer be trusted.</span>`}
+          ? `<b>Verified</b><span>All ${chain.checked} entries hash-chained and intact. Head <code>${esc(chain.head.slice(0, 16))}…</code></span>`
+          : `<b>Tampered</b><span>The chain breaks at entry #${brokenAt}: someone changed, removed or reordered the ledger. Nothing from there on can be trusted.</span>`}
       </div>
       <p class="muted small">Each entry stores the SHA-256 of the one before it. Values are never logged, only who touched which path.</p>
       <div class="table-wrap"><table class="data"><thead><tr><th>#</th><th>When</th><th>Who</th><th>Action</th><th>Path</th><th>Result</th><th>Hash</th></tr></thead><tbody>
@@ -333,7 +350,7 @@ async function renderStorage(view) {
         <div class="head"><h2>What a thief gets</h2><p class="muted small">This is the stored data (shortened): everything an attacker has after stealing the database file.</p></div>
         <pre class="raw">${rawPreview(state)}</pre>
       </section>
-      <section class="panel">
+      <section class="panel doc">
         <h2>Why that is useless</h2>
         <ul class="facts">
           <li><b>Values</b> are AES-256-GCM ciphertext, each with its <b>own data key</b>.</li>
@@ -373,7 +390,17 @@ function renderIdentities() {
   $("#id-list").querySelectorAll("[data-id]").forEach((b) => b.addEventListener("click", () => signIn(demo.identities[Number(b.dataset.id)].token)));
 }
 
+async function startVault() {
+  try {
+    const { createVault } = await import("./vault.js");
+    vault = createVault($("#vault"), { reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches });
+  } catch { vault = null; }
+  if (!vault) $("#vault").hidden = true;
+  $("#token").addEventListener("input", (e) => vault?.typed(e.target.value.length));
+}
+
 (async function start() {
+  await startVault();
   if (DEMO) {
     $("#banner").hidden = false;
     $("#login").hidden = false;

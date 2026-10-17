@@ -8,53 +8,57 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500..800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,500..800;1,6..96,500&family=Hanken+Grotesk:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
   <div class="banner" id="banner" hidden>
-    <b>Playground.</b> A real LOCKBOX runs in your browser with Web Crypto: switch identities, reveal secrets,
-    try what an app may not do, tamper with the audit log, look at what a thief would get.
-    <a href="https://github.com/NotDom1n1c/lockbox">Source</a>
+    <b>Playground</b> · a real LOCKBOX runs in your browser with Web Crypto. Switch identities, reveal secrets,
+    try what an app may not do, tamper with the ledger. <a href="https://github.com/NotDom1n1c/lockbox">Source →</a>
   </div>
 
-  <!-- ------------------------------------------------------------ login -->
+  <!-- ------------------------------------------------------------ the vault door -->
   <main class="login" id="login" hidden>
-    <div class="login__card">
-      <svg class="mark mark--big" viewBox="0 0 48 48" aria-hidden="true"><rect x="5" y="5" width="38" height="38" rx="9"/><circle cx="24" cy="21" r="6"/><path d="M24 27v8"/></svg>
-      <h1>LOCKBOX</h1>
-      <p class="muted">Secrets with envelope encryption, least-privilege policies and an audit trail nobody can quietly edit.</p>
+    <div class="door">
+      <canvas id="vault" aria-label="A vault door with a combination dial. It opens when the token is accepted."></canvas>
+      <p class="door__caption" id="door-caption">Locked · AES-256-GCM</p>
+    </div>
+
+    <section class="card" aria-labelledby="login-title">
+      <p class="eyebrow">Safe deposit · est. 2026</p>
+      <h1 id="login-title">Lock<em>box</em></h1>
+      <p class="intro">Secrets under envelope encryption. Every box has its own key, every visit is written into a ledger nobody can quietly edit.</p>
 
       <div id="identities" hidden>
-        <p class="label">Sign in as</p>
+        <p class="label">Present your key as</p>
         <div class="ids" id="id-list"></div>
       </div>
 
       <form id="login-form" class="stack">
-        <label class="label" for="token">Token</label>
+        <label class="label" for="token">Or enter a token</label>
         <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="lbx_…">
-        <button class="btn btn--brass" type="submit">Unlock</button>
+        <button class="btn btn--brass" type="submit">Turn the dial</button>
         <p class="error" id="login-error" hidden></p>
       </form>
-    </div>
+    </section>
   </main>
 
-  <!-- ------------------------------------------------------------ app -->
+  <!-- ------------------------------------------------------------ inside -->
   <div class="app" id="app" hidden>
     <header class="top">
       <a class="brand" href="./">
-        <svg class="mark" viewBox="0 0 48 48" aria-hidden="true"><rect x="5" y="5" width="38" height="38" rx="9"/><circle cx="24" cy="21" r="6"/><path d="M24 27v8"/></svg>
-        LOCKBOX
+        <svg class="mark" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="19"/><circle cx="24" cy="24" r="7"/><path d="M24 5v5M24 38v5M5 24h5M38 24h5"/></svg>
+        <span>Lock<em>box</em></span>
       </a>
       <nav class="tabs" id="tabs" role="tablist">
-        <button data-tab="secrets" role="tab">Secrets</button>
-        <button data-tab="clients" role="tab" data-admin>Clients</button>
-        <button data-tab="audit" role="tab" data-admin>Audit log</button>
-        <button data-tab="storage" role="tab" data-admin>Storage</button>
+        <button data-tab="secrets" role="tab">Deposit boxes</button>
+        <button data-tab="clients" role="tab" data-admin>Key register</button>
+        <button data-tab="audit" role="tab" data-admin>Ledger</button>
+        <button data-tab="storage" role="tab" data-admin>The vault file</button>
       </nav>
       <div class="who">
         <span class="who__name" id="who"></span>
-        <button class="btn btn--ghost btn--sm" id="logout" type="button">Switch</button>
+        <button class="btn btn--ghost btn--sm" id="logout" type="button">Lock &amp; leave</button>
       </div>
     </header>
 
