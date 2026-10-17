@@ -10,6 +10,10 @@ Built by Dominic Aebersold (Informatiker EFZ Plattformentwicklung) as a portfoli
 
 ## Screenshots
 
+**Sign-in**: a vault door in three.js. The combination dial turns as you type the token; on success the wheel turns, the bolts retract and the door swings open, a wrong token makes it shudder.
+
+![Vault door](docs/screenshots/login.png)
+
 **Secrets**: values stay hidden until revealed, and every reveal is audited. Old secrets are flagged for rotation.
 
 ![Secrets](docs/screenshots/secrets.png)
