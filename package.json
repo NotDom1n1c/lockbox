@@ -1,0 +1,14 @@
+{
+  "name": "lockbox",
+  "version": "1.0.0",
+  "description": "A small secrets manager: envelope encryption, policies, tamper-evident audit log",
+  "type": "module",
+  "private": true,
+  "bin": { "lockbox": "src/cli.js" },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "LOCKBOX_DEV=1 node src/server.js",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=22" }
+}

@@ -1,0 +1,64 @@
+# tests -> image -> smoke test -> Trivy -> GHCR
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/notdom1n1c/lockbox
+  TRIVY_VERSION: "0.76.0"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Unit + API tests (crypto, policies, rotation, audit chain, CLI)
+        run: node --test --test-reporter=spec
+
+  image:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build
+        run: |
+          echo "TAG=sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          docker build --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" -t "$IMAGE:sha-${GITHUB_SHA::7}" -t "$IMAGE:latest" .
+      - name: Smoke test (real master key, data on a volume, restart keeps data)
+        run: |
+          KEY=$(head -c 32 /dev/urandom | base64)
+          docker volume create lbx
+          docker run -d --name lbx -p 8200:8200 -v lbx:/data -e LOCKBOX_MASTER_KEY="$KEY" "$IMAGE:$TAG"
+          for i in $(seq 1 30); do curl -fs localhost:8200/v1/health && break; sleep 1; done
+          ROOT=$(docker logs lbx | grep -oE 'lbx_[A-Za-z0-9_-]+' | head -1)
+          curl -fs -X PUT localhost:8200/v1/secrets/smoke/test -H "authorization: Bearer $ROOT" -H 'content-type: application/json' -d '{"value":"it works"}'
+          docker restart lbx; sleep 3
+          test "$(curl -fs localhost:8200/v1/secrets/smoke/test -H "authorization: Bearer $ROOT" | grep -o 'it works')" = "it works"
+          echo "survived a restart, value still decrypts"
+          docker rm -f lbx; docker run -d --name lbx2 -p 8201:8200 -v lbx:/data -e LOCKBOX_MASTER_KEY="$(head -c 32 /dev/urandom | base64)" "$IMAGE:$TAG"
+          sleep 3; docker logs lbx2 2>&1 | grep -q "master key does not match" && echo "wrong master key refused at startup"
+      - name: Security scan (Trivy)
+        run: |
+          trivy() { docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$HOME/.cache/trivy:/root/.cache/trivy" "aquasec/trivy:$TRIVY_VERSION" "$@"; }
+          trivy image --no-progress --ignore-unfixed --severity HIGH,CRITICAL "$IMAGE:$TAG" | tee trivy.txt
+          { echo "### Trivy"; echo '```'; cat trivy.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          trivy image --quiet --skip-db-update --ignore-unfixed --severity CRITICAL --exit-code 1 "$IMAGE:$TAG"
+      - name: Push to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE:$TAG"
+          docker push "$IMAGE:latest"
