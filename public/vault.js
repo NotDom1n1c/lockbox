@@ -7,7 +7,7 @@
 import * as THREE from "./vendor/three.module.min.js";
 import { RoomEnvironment } from "./vendor/RoomEnvironment.js";
 
-const BRASS = 0xc9a24a;
+const COPPER = 0xc8805f;
 
 function dialTexture() {
   const c = document.createElement("canvas");
@@ -15,15 +15,15 @@ function dialTexture() {
   const g = c.getContext("2d");
   const cx = 512;
   const grad = g.createRadialGradient(cx, cx, 60, cx, cx, 512);
-  grad.addColorStop(0, "#2a2620");
-  grad.addColorStop(1, "#0f0e0c");
+  grad.addColorStop(0, "#1f3a34");
+  grad.addColorStop(1, "#0d1a17");
   g.fillStyle = grad;
   g.fillRect(0, 0, 1024, 1024);
   g.translate(cx, cx);
   for (let i = 0; i < 100; i++) {
     g.save();
     g.rotate((i / 100) * Math.PI * 2);
-    g.fillStyle = "#d9b55e";
+    g.fillStyle = "#b8ecd9";
     const long = i % 10 === 0, mid = i % 5 === 0;
     g.fillRect(-3, -500, 6, long ? 70 : mid ? 46 : 28);
     if (long) {
@@ -33,7 +33,7 @@ function dialTexture() {
     }
     g.restore();
   }
-  g.strokeStyle = "#d9b55e";
+  g.strokeStyle = "#b8ecd9";
   g.lineWidth = 6;
   g.beginPath();
   g.arc(0, 0, 300, 0, Math.PI * 2);
@@ -41,6 +41,35 @@ function dialTexture() {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
+  return tex;
+}
+
+// mottled verdigris: green-blue patina with spots where the copper shows through
+function patinaTexture() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 512;
+  const g = c.getContext("2d");
+  g.fillStyle = "#2c5f53";
+  g.fillRect(0, 0, 512, 512);
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const blot = (color, n, rMin, rMax, alpha) => {
+    for (let i = 0; i < n; i++) {
+      const x = rnd() * 512, y = rnd() * 512, r = rMin + rnd() * (rMax - rMin);
+      const grd = g.createRadialGradient(x, y, 0, x, y, r);
+      grd.addColorStop(0, color.replace("A", alpha));
+      grd.addColorStop(1, color.replace("A", 0));
+      g.fillStyle = grd;
+      g.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+  };
+  blot("rgba(78,140,124,A)", 70, 20, 70, 0.4);
+  blot("rgba(30,62,54,A)", 90, 15, 60, 0.6);
+  blot("rgba(150,95,70,A)", 40, 4, 16, 0.7);
+  blot("rgba(140,205,185,A)", 40, 2, 7, 0.35);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   return tex;
 }
 
@@ -54,7 +83,7 @@ export function createVault(canvas, { reducedMotion = false } = {}) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 0.85;
 
   const scene = new THREE.Scene();
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -63,10 +92,11 @@ export function createVault(canvas, { reducedMotion = false } = {}) {
   const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
   camera.position.set(0, 0.2, 15);
 
-  const steel = new THREE.MeshStandardMaterial({ color: 0x8c9196, metalness: 0.88, roughness: 0.32 });
-  const darkSteel = new THREE.MeshStandardMaterial({ color: 0x3b4044, metalness: 0.85, roughness: 0.45 });
-  const brass = new THREE.MeshStandardMaterial({ color: BRASS, metalness: 1, roughness: 0.28 });
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x0c0e0e, metalness: 0.2, roughness: 0.95, envMapIntensity: 0.12 });
+  // verdigris: copper that has turned green-blue with age
+  const steel = new THREE.MeshStandardMaterial({ color: 0xffffff, map: patinaTexture(), metalness: 0.45, roughness: 0.62, envMapIntensity: 0.3 });
+  const darkSteel = new THREE.MeshStandardMaterial({ color: 0x1f3d36, metalness: 0.6, roughness: 0.55 });
+  const brass = new THREE.MeshStandardMaterial({ color: COPPER, metalness: 1, roughness: 0.3 });
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x1e0c24, metalness: 0.15, roughness: 0.95, envMapIntensity: 0.15 });
 
   // ---------------------------------------------------------------- wall + frame
   const wallShape = new THREE.Shape();
@@ -81,7 +111,7 @@ export function createVault(canvas, { reducedMotion = false } = {}) {
   frameRing.position.z = -0.35;
   scene.add(frameRing);
   const recess = new THREE.Mesh(new THREE.CylinderGeometry(3.3, 3.3, 1.2, 96, 1, true),
-    new THREE.MeshStandardMaterial({ color: 0x0b0c0c, metalness: 0.6, roughness: 0.7, side: THREE.BackSide }));
+    new THREE.MeshStandardMaterial({ color: 0x170819, metalness: 0.6, roughness: 0.7, side: THREE.BackSide }));
   recess.rotation.x = Math.PI / 2;
   recess.position.z = -1;
   scene.add(recess);
@@ -89,7 +119,7 @@ export function createVault(canvas, { reducedMotion = false } = {}) {
   const inside = new THREE.Group();
   inside.position.z = -2.4;
   scene.add(inside);
-  const boxMat = new THREE.MeshStandardMaterial({ color: 0x6d5a2c, metalness: 0.9, roughness: 0.38 });
+  const boxMat = new THREE.MeshStandardMaterial({ color: 0x9c6a52, metalness: 0.9, roughness: 0.38 });
   for (let r = -2; r <= 2; r++) for (let c = -2; c <= 2; c++) {
     if (r * r + c * c > 6) continue;
     const b = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.62, 0.3), boxMat);
@@ -99,7 +129,7 @@ export function createVault(canvas, { reducedMotion = false } = {}) {
     knob.position.set(c * 1.12, r * 0.7, 0.17);
     inside.add(knob);
   }
-  const warm = new THREE.PointLight(0xffc56b, 0, 9, 1.6);
+  const warm = new THREE.PointLight(0xffb59a, 0, 9, 1.6);
   warm.position.set(0, 0, -0.6);
   scene.add(warm);
 
@@ -173,17 +203,17 @@ export function createVault(canvas, { reducedMotion = false } = {}) {
     scene.add(h);
   }
   // status lamp above the door
-  const lampMat = new THREE.MeshStandardMaterial({ color: 0x2b1a14, emissive: 0x000000, metalness: 0.2, roughness: 0.3 });
+  const lampMat = new THREE.MeshStandardMaterial({ color: 0x2b1420, emissive: 0x000000, metalness: 0.2, roughness: 0.3 });
   const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.16, 20, 14), lampMat);
   lamp.position.set(0, 4.15, 0);
   scene.add(lamp);
 
   // ---------------------------------------------------------------- lights
   scene.add(new THREE.AmbientLight(0xffffff, 0.15));
-  const key = new THREE.DirectionalLight(0xfff1d6, 2.2);
+  const key = new THREE.DirectionalLight(0xffe9f0, 1.15);
   key.position.set(-5, 6, 9);
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0x9fb7c9, 1.0);
+  const rim = new THREE.DirectionalLight(0x8fd3bd, 1.1);
   rim.position.set(6, -3, 4);
   scene.add(rim);
 
